@@ -1,12 +1,12 @@
 using BuberDinner.Application.Services.Authentication;
 using BuberDinner.Contracts.Authentication;
+using BuberDinner.Domain.Common.Errors;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BuberDinner.Api.Controllers;
 
-[ApiController]
 [Route("auth")]
-public class AuthenticationController : ControllerBase
+public class AuthenticationController : ApiController
 {
   private readonly IAuthenticationService _authenticationService;
 
@@ -24,15 +24,10 @@ public class AuthenticationController : ControllerBase
       request.Email,
       request.Password);
 
-    var response = new AuthenticationResponse(
-      Id: authResult.User.Id,
-      FirstName: authResult.User.FirstName,
-      LastName: authResult.User.LastName,
-      Email: authResult.User.Email,
-      Token: authResult.Token
+    return authResult.Match(
+      authResult => Ok(MapAuthResult(authResult)),
+      errors => Problem(errors)
     );
-
-    return Ok(response);
   }
 
   [HttpPost("login")]
@@ -43,14 +38,24 @@ public class AuthenticationController : ControllerBase
       request.Password
     );
 
-    var response = new AuthenticationResponse(
+    if (authResult.IsError && authResult.FirstError == Errors.Authentication.InvalidCredentials)
+      return Problem(
+        statusCode: StatusCodes.Status401Unauthorized,
+        title: authResult.FirstError.Description
+      );
+
+    return authResult.Match(
+      authResult => Ok(MapAuthResult(authResult)),
+      errors => Problem(errors)
+    );
+  }
+
+  private AuthenticationResponse MapAuthResult(AuthenticationResult authResult) 
+    => new AuthenticationResponse(
       Id: authResult.User.Id,
       FirstName: authResult.User.FirstName,
       LastName: authResult.User.LastName,
       Email: authResult.User.Email,
       Token: authResult.Token
     );
-
-    return Ok(response);
-  }
 }
