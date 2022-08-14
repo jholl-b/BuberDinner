@@ -8,27 +8,36 @@ namespace BuberDinner.Api.Controllers;
 public class ApiController : ControllerBase
 {
   protected IActionResult Problem(List<Error> errors)
-  {
-    var firstError = errors[0];
-
-    var statusCode = firstError.Type switch
     {
-      ErrorType.Conflict => StatusCodes.Status409Conflict,
-      ErrorType.Validation => StatusCodes.Status400BadRequest,
-      ErrorType.NotFound => StatusCodes.Status404NotFound,
-      _ => StatusCodes.Status500InternalServerError
-    };
+        if (errors.Count is 0)
+            return Problem();
 
-    var modelState = new ModelStateDictionary();
-    foreach (var error in errors)
-    {
-      modelState.AddModelError(error.Code, error.Description);
+        var modelState = new ModelStateDictionary();
+        foreach (var error in errors)
+        {
+            modelState.AddModelError(error.Code, error.Description);
+        }
+
+        if (errors.All(error => error.Type == ErrorType.Validation))
+            return ValidationProblem(modelState);
+
+        return Problems(modelState, errors[0]);
     }
 
-    return ValidationProblem(
-      statusCode: statusCode,
-      title: firstError.Description,
-      modelStateDictionary: modelState
-    );
-  }
+    private IActionResult Problems(ModelStateDictionary modelState, Error error)
+    {
+        var statusCode = error.Type switch
+        {
+            ErrorType.Conflict => StatusCodes.Status409Conflict,
+            ErrorType.Validation => StatusCodes.Status400BadRequest,
+            ErrorType.NotFound => StatusCodes.Status404NotFound,
+            _ => StatusCodes.Status500InternalServerError
+        };
+
+        return ValidationProblem(
+          statusCode: statusCode,
+          title: error.Description,
+          modelStateDictionary: modelState
+        );
+    }
 }
